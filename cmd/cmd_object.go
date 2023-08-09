@@ -379,43 +379,6 @@ func putObject(ctx *cli.Context) error {
 				fmt.Printf("upload: %s to %s \n", objectName, urlInfo)
 				return nil
 			}
-
-			concurrentNumber := 5
-			downloadCount := 5
-			quota0, err := gnfdClient.GetBucketReadQuota(context.Background(), bucketName)
-			if err != nil {
-				return toCmdErr(err)
-			}
-			fmt.Println("get quota;", quota0)
-
-			var wg sync.WaitGroup
-			wg.Add(concurrentNumber)
-
-			for i := 0; i < concurrentNumber; i++ {
-				go func() {
-					defer wg.Done()
-					for i := 0; i < downloadCount; i++ {
-						objectContent, _, err := gnfdClient.GetObject(c, bucketName, objectName, sdktypes.GetObjectOptions{})
-						if err != nil {
-							fmt.Printf("error: %v", err)
-							quota2, _ := gnfdClient.GetBucketReadQuota(context.Background(), bucketName)
-							//	s.NoError(err, quota2)
-							fmt.Printf("quota: %v", quota2)
-						}
-						_, err = io.ReadAll(objectContent)
-						if err != nil {
-							fmt.Println("get object err;", err.Error())
-						}
-					}
-				}()
-			}
-			wg.Wait()
-
-			expectQuotaUsed := int(objectSize) * concurrentNumber * downloadCount * 1024
-			fmt.Println("expect quota:", expectQuotaUsed)
-			quota1, err := gnfdClient.GetBucketReadQuota(context.Background(), bucketName)
-			consumedQuota := quota1.ReadConsumedSize - quota0.ReadConsumedSize
-			fmt.Println("actual quota:", consumedQuota)
 		}
 	}
 
@@ -481,17 +444,42 @@ func getObject(ctx *cli.Context) error {
 		}
 	}
 
-	body, info, err := gnfdClient.GetObject(c, bucketName, objectName, opt)
+	concurrentNumber := 5
+	downloadCount := 5
+	quota0, err := gnfdClient.GetBucketReadQuota(context.Background(), bucketName)
 	if err != nil {
 		return toCmdErr(err)
 	}
+	fmt.Println("get quota;", quota0)
 
-	_, err = io.Copy(fd, body)
-	if err != nil {
-		return toCmdErr(err)
+	var wg sync.WaitGroup
+	wg.Add(concurrentNumber)
+
+	for i := 0; i < concurrentNumber; i++ {
+		go func() {
+			defer wg.Done()
+			for i := 0; i < downloadCount; i++ {
+				objectContent, _, err := gnfdClient.GetObject(c, bucketName, objectName, opt)
+				if err != nil {
+					fmt.Printf("error: %v", err)
+					quota2, _ := gnfdClient.GetBucketReadQuota(context.Background(), bucketName)
+					//	s.NoError(err, quota2)
+					fmt.Printf("quota: %v", quota2)
+				}
+				_, err = io.ReadAll(objectContent)
+				if err != nil {
+					fmt.Println("get object err;", err.Error())
+				}
+			}
+		}()
 	}
+	wg.Wait()
 
-	fmt.Printf("download object %s, the file path is %s, content length:%d \n", objectName, filePath, uint64(info.Size))
+	expectQuotaUsed := int(3146752) * concurrentNumber * downloadCount * 1024
+	fmt.Println("expect quota:", expectQuotaUsed)
+	quota1, err := gnfdClient.GetBucketReadQuota(context.Background(), bucketName)
+	consumedQuota := quota1.ReadConsumedSize - quota0.ReadConsumedSize
+	fmt.Println("actual quota:", consumedQuota)
 
 	return nil
 }
