@@ -800,9 +800,6 @@ func replicateObject(ctx *cli.Context) error {
 	}
 
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to replicate piece, status_code(%d) endpoint(%s)", resp.StatusCode, spAddressInfo)
-	}
 
 	// construct err responses and messages
 	err = ConstructErrResponse(resp, "bucket", "objecrt")
