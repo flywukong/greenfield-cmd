@@ -765,15 +765,21 @@ func replicateObject(ctx *cli.Context) error {
 	// sp addr could be an endpoint or sp operator address
 	spAddressInfo := ctx.Args().Get(0)
 	filePath := "test.file"
-	// If file exist, open it in append mode
-	fd, err := os.OpenFile(filePath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0660)
+
+	fReader, err := os.Open(filePath)
+	// If any error fail quickly here.
+	if err != nil {
+		return err
+	}
+	defer fReader.Close()
+
+	// Save the file stat.
+	_, err = fReader.Stat()
 	if err != nil {
 		return err
 	}
 
-	defer fd.Close()
-
-	req, err := http.NewRequest(http.MethodPut, spAddressInfo+ReplicateObjectPiecePath, fd)
+	req, err := http.NewRequest(http.MethodPut, spAddressInfo+ReplicateObjectPiecePath, fReader)
 	if err != nil {
 		return toCmdErr(err)
 		return err
